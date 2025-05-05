@@ -10,8 +10,6 @@ st.markdown("""
     <style>
     html, body, [class*="css"] {
         font-family: 'Segoe UI', sans-serif;
-        background-color: #ffffff;
-        color: #1F1F1F;
     }
 
     section[data-testid="stSidebar"] {
@@ -44,14 +42,10 @@ st.markdown("""
         margin-bottom: 10px;
     }
 
-    h1, h2, h3, h4 {
-        color: #1F1F1F;
-    }
-
     .dataframe th {
         background-color: #F0F8FF;
-        color: #1F1F1F;
     }
+
     .dataframe td {
         text-align: center;
         padding: 6px;
@@ -64,20 +58,17 @@ st.sidebar.image("https://img.icons8.com/ios-filled/50/database.png", width=30)
 st.sidebar.title("SPK Investasi Mahasiswa")
 st.sidebar.markdown("### Metode Input Data")
 
-# Tombol vertikal
 manual_click = st.sidebar.button("📝 Input Manual", key="btn_manual")
 upload_click = st.sidebar.button("📁 Upload File", key="btn_upload")
 
 # === KONSTAN ===
 kriteria_cols = ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)',
-                 'Aset (Rp)', 'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)',
-                 'Tingkat Risiko (1-5)']
-cost_indices = [1, 6]
+                 'Aset (Rp)', 'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)']
+cost_indices = [1, 6]  # indeks kriteria cost
 
-# Handle session state
+# === SESSION ===
 if 'input_method' not in st.session_state:
     st.session_state.input_method = "Manual"
-
 if manual_click:
     st.session_state.input_method = "Manual"
 if upload_click:
@@ -123,10 +114,8 @@ def get_status_and_recommendation(score):
 
 # === MAIN ===
 st.title("📊 Sistem Pendukung Keputusan Investasi Usaha Mahasiswa")
-
 df_usaha = None
 
-# === INPUT MANUAL ===
 if input_method == "Manual":
     st.subheader("📝 Input Manual")
     num = st.number_input("Jumlah Usaha", min_value=1, max_value=20, step=1)
@@ -138,11 +127,8 @@ if input_method == "Manual":
     if st.button("💾 Simpan & Tampilkan Hasil", key="process_manual"):
         df_usaha = df_input.copy()
 
-# === INPUT FILE ===
 elif input_method == "Upload":
     st.subheader("📁 Upload File")
-
-    # === DOWNLOAD TEMPLATE ONLY IN THIS PAGE ===
     template_df = pd.DataFrame({
         "Nama Usaha": [""],
         **{col: [0.0] for col in kriteria_cols}
@@ -155,7 +141,6 @@ elif input_method == "Upload":
         mime='text/csv',
         help="Unduh format input kosong sebagai panduan"
     )
-
     uploaded_file = st.file_uploader("Unggah file CSV/XLSX", type=["csv", "xlsx"])
     if uploaded_file is not None:
         try:
@@ -167,7 +152,7 @@ elif input_method == "Upload":
         except Exception as e:
             st.error(f"Gagal membaca file: {e}")
 
-# === PROSES & HASIL ===
+# === PROSES & OUTPUT ===
 if df_usaha is not None:
     st.subheader("📄 Data Usaha Mahasiswa")
     st.dataframe(df_usaha.reset_index(drop=True), use_container_width=True)
