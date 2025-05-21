@@ -54,7 +54,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SIDEBAR ===
-st.sidebar.image("https://img.icons8.com/ios-filled/50/database.png", width=30)
 st.sidebar.title("SPK Investasi Mahasiswa")
 st.sidebar.markdown("### Metode Input Data")
 
