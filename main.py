@@ -5,14 +5,14 @@ import numpy as np
 # === PAGE CONFIG ===
 st.set_page_config(page_title="SPK Investasi Mahasiswa", layout="wide")
 
-# === LANGUAGE SESSION STATE ===
+# === SESSION STATE ===
 if 'language' not in st.session_state:
     st.session_state.language = 'id'
 
 def switch_language():
     st.session_state.language = 'en' if st.session_state.language == 'id' else 'id'
 
-# === TEXT DICTIONARY ===
+# === TEXT MULTI-BAHASA ===
 TEXTS = {
     "id": {
         "title": "📊 Sistem Pendukung Keputusan Investasi Usaha Mahasiswa",
@@ -51,6 +51,27 @@ TEXTS = {
         "results_title": "📈 Investment Recommendation Results",
         "download_result": "💾 Download Results",
         "switch_lang": "🔁 Switch to Bahasa Indonesia"
+    }
+}
+
+KRITERIA_LABELS = {
+    "id": {
+        'ROI (%)': 'ROI (%)',
+        'Modal Awal (Rp)': 'Modal Awal (Rp)',
+        'Pendapatan Rata-Rata 3 Bulan (Rp)': 'Pendapatan Rata-Rata 3 Bulan (Rp)',
+        'Aset (Rp)': 'Aset (Rp)',
+        'Inovasi Produk (1-5)': 'Inovasi Produk (1-5)',
+        'Peluang Pasar (1-5)': 'Peluang Pasar (1-5)',
+        'Tingkat Risiko (1-5)': 'Tingkat Risiko (1-5)'
+    },
+    "en": {
+        'ROI (%)': 'ROI (%)',
+        'Modal Awal (Rp)': 'Initial Capital (Rp)',
+        'Pendapatan Rata-Rata 3 Bulan (Rp)': 'Avg. 3-Month Revenue (Rp)',
+        'Aset (Rp)': 'Assets (Rp)',
+        'Inovasi Produk (1-5)': 'Product Innovation (1-5)',
+        'Peluang Pasar (1-5)': 'Market Opportunity (1-5)',
+        'Tingkat Risiko (1-5)': 'Risk Level (1-5)'
     }
 }
 
@@ -101,17 +122,15 @@ st.markdown("""
 lang = st.session_state.language
 st.sidebar.title(TEXTS[lang]["sidebar_title"])
 st.sidebar.markdown(TEXTS[lang]["input_method"])
-
 st.sidebar.button(TEXTS[lang]["switch_lang"], on_click=switch_language)
 manual_click = st.sidebar.button(TEXTS[lang]["manual_input"], key="btn_manual")
 upload_click = st.sidebar.button(TEXTS[lang]["upload_file"], key="btn_upload")
 
 # === KONSTAN ===
-kriteria_cols = ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)',
-                 'Aset (Rp)', 'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)']
+kriteria_cols = list(KRITERIA_LABELS["id"].keys())
 cost_indices = [1, 6]
 
-# === SESSION STATE ===
+# === SESSION ===
 if 'input_method' not in st.session_state:
     st.session_state.input_method = "Manual"
 if manual_click:
@@ -166,25 +185,22 @@ if input_method == "Manual":
     num = st.number_input(TEXTS[lang]["jumlah_usaha"], min_value=1, max_value=20, step=1)
     default_data = pd.DataFrame({
         "Nama Usaha": [f"Usaha {i+1}" for i in range(num)],
-        **{col: [0.0]*num for col in kriteria_cols}
+        **{KRITERIA_LABELS[lang][col]: [0.0]*num for col in kriteria_cols}
     })
     df_input = st.data_editor(default_data, use_container_width=True, num_rows="dynamic")
     if st.button(TEXTS[lang]["save_and_process"], key="process_manual"):
+        df_input.columns = ["Nama Usaha"] + kriteria_cols  # normalize column names back
         df_usaha = df_input.copy()
 
 elif input_method == "Upload":
     st.subheader(TEXTS[lang]["upload_section"])
     template_df = pd.DataFrame({
         "Nama Usaha": [""],
-        **{col: [0.0] for col in kriteria_cols}
+        **{KRITERIA_LABELS[lang][col]: [0.0] for col in kriteria_cols}
     })
+    template_df.columns = ["Nama Usaha"] + kriteria_cols
     template_csv = template_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label=TEXTS[lang]["download_template"],
-        data=template_csv,
-        file_name='template_input_usaha.csv',
-        mime='text/csv'
-    )
+    st.download_button(TEXTS[lang]["download_template"], data=template_csv, file_name="template_input_usaha.csv", mime="text/csv")
     uploaded_file = st.file_uploader(TEXTS[lang]["upload_prompt"], type=["csv", "xlsx"])
     if uploaded_file is not None:
         try:
