@@ -24,7 +24,7 @@ labels = {
         'bobot': "📌 Bobot Kriteria (Metode CRITIC)",
         'hasil': "📈 Hasil Rekomendasi Investasi",
         'download_hasil': "💾 Unduh Hasil",
-        'change_lang': "🇬🇧 English",
+        'change_lang': "EN English",
         'kriteria': ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)', 'Aset (Rp)',
                      'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)'],
         'status': {
