@@ -8,7 +8,6 @@ st.set_page_config(page_title="SPK Investasi Mahasiswa", layout="wide")
 # === BAHASA ===
 if 'language' not in st.session_state:
     st.session_state.language = 'id'
-
 lang = st.session_state.language
 
 labels = {
@@ -19,7 +18,7 @@ labels = {
         'num_usaha': "Jumlah Usaha",
         'save': "💾 Simpan & Tampilkan Hasil",
         'download_template': "⬇️ Unduh Template Kosong (CSV)",
-        'upload_prompt': "Unggah file CSV/XLSX",
+        'upload_prompt': "Unggah file CSV",
         'data_usaha': "📄 Data Usaha Mahasiswa",
         'bobot': "📌 Bobot Kriteria (Metode CRITIC)",
         'hasil': "📈 Hasil Rekomendasi Investasi",
@@ -27,6 +26,7 @@ labels = {
         'change_lang': "🇬🇧 English",
         'kriteria': ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)', 'Aset (Rp)',
                      'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)'],
+        'nama_usaha': 'Nama Usaha',
         'status': {
             'sangat_layak': "Sangat Layak",
             'layak': "Layak",
@@ -42,7 +42,7 @@ labels = {
         'num_usaha': "Number of Businesses",
         'save': "💾 Save & Show Result",
         'download_template': "⬇️ Download Blank Template (CSV)",
-        'upload_prompt': "Upload CSV/XLSX file",
+        'upload_prompt': "Upload CSV file",
         'data_usaha': "📄 Student Business Data",
         'bobot': "📌 Criteria Weights (CRITIC Method)",
         'hasil': "📈 Investment Recommendation Result",
@@ -50,6 +50,7 @@ labels = {
         'change_lang': "🇮🇩 Bahasa Indonesia",
         'kriteria': ['ROI (%)', 'Initial Capital (Rp)', 'Avg. 3-Month Revenue (Rp)', 'Assets (Rp)',
                      'Product Innovation (1-5)', 'Market Opportunity (1-5)', 'Risk Level (1-5)'],
+        'nama_usaha': 'Business Name',
         'status': {
             'sangat_layak': "Highly Recommended",
             'layak': "Recommended",
@@ -110,8 +111,6 @@ st.markdown("""
 st.sidebar.title("SPK Investasi Mahasiswa")
 manual_click = st.sidebar.button(labels[lang]['manual'], key="btn_manual")
 upload_click = st.sidebar.button(labels[lang]['upload'], key="btn_upload")
-
-# Tombol ubah bahasa di sidebar bawah
 with st.sidebar:
     st.markdown("---")
     if st.button(labels[lang]['change_lang']):
@@ -147,8 +146,7 @@ def calculate_codas(data_normalized, weights):
     euclidean = np.sqrt(((weighted_data - ideal_solution) ** 2).sum(axis=1))
     taxicab = np.abs(weighted_data - ideal_solution).sum(axis=1)
     score = euclidean + taxicab
-    score_normalized = (score - score.min()) / (score.max() - score.min())
-    return score_normalized
+    return (score - score.min()) / (score.max() - score.min())
 
 def get_status_and_recommendation(score, modal_awal):
     stts = labels[lang]['status']
@@ -171,7 +169,7 @@ if input_method == "Manual":
     st.subheader(labels[lang]['manual'])
     num = st.number_input(labels[lang]['num_usaha'], min_value=1, max_value=20, step=1)
     default_data = pd.DataFrame({
-        "Business Name" if lang == 'en' else "Nama Usaha": [f"Business {i+1}" if lang == 'en' else f"Usaha {i+1}" for i in range(num)],
+        labels[lang]['nama_usaha']: [f"Business {i+1}" if lang == 'en' else f"Usaha {i+1}" for i in range(num)],
         **{col: [0.0]*num for col in labels[lang]['kriteria']}
     })
     df_input = st.data_editor(default_data, use_container_width=True, num_rows="dynamic")
@@ -180,9 +178,8 @@ if input_method == "Manual":
 
 elif input_method == "Upload":
     st.subheader(labels[lang]['upload'])
-
     template_df = pd.DataFrame({
-        "Business Name" if lang == 'en' else "Nama Usaha": [""],
+        labels[lang]['nama_usaha']: [""],
         **{col: [0.0] for col in labels[lang]['kriteria']}
     })
     template_csv = template_df.to_csv(index=False).encode('utf-8')
@@ -190,11 +187,9 @@ elif input_method == "Upload":
         label=labels[lang]['download_template'],
         data=template_csv,
         file_name='template_input_usaha.csv',
-        mime='text/csv',
-        help="Unduh format input kosong sebagai panduan" if lang == 'id' else "Download this template as a guide"
+        mime='text/csv'
     )
-
-    uploaded_file = st.file_uploader(labels[lang]['upload_prompt'], type=["csv", "xlsx"])
+    uploaded_file = st.file_uploader(labels[lang]['upload_prompt'], type=["csv"])
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith(".csv"):
@@ -224,13 +219,13 @@ if df_usaha is not None:
     st.write(weights)
 
     df_usaha['Skor CODAS'] = calculate_codas(data_normalized, weights)
-    df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').fillna(0).astype(int)
+    df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').astype(int)
     df_usaha['Status Kelayakan'], df_usaha['Rekomendasi Investasi (Rp)'] = zip(
         *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])])
 
     st.subheader(labels[lang]['hasil'])
-    nama_col = 'Business Name' if lang == 'en' else 'Nama Usaha'
-    df_output = df_usaha[['Peringkat', nama_col, 'Skor CODAS', 'Status Kelayakan', 'Rekomendasi Investasi (Rp)']]
+    df_usaha[labels[lang]['nama_usaha']] = df_usaha[labels[lang]['nama_usaha']].fillna("-")
+    df_output = df_usaha[['Peringkat', labels[lang]['nama_usaha'], 'Skor CODAS', 'Status Kelayakan', 'Rekomendasi Investasi (Rp)']]
     df_output = df_output.sort_values(by='Peringkat').reset_index(drop=True)
 
     st.dataframe(
@@ -238,7 +233,7 @@ if df_usaha is not None:
             "Skor CODAS": "{:.4f}",
             "Rekomendasi Investasi (Rp)": "Rp {:,.0f}"
         }).set_properties(**{'text-align': 'center'}).set_properties(
-            subset=[nama_col], **{'text-align': 'left'}),
+            subset=[labels[lang]['nama_usaha']], **{'text-align': 'left'}),
         use_container_width=True
     )
 
