@@ -9,11 +9,6 @@ st.set_page_config(page_title="SPK Investasi Mahasiswa", layout="wide")
 if 'language' not in st.session_state:
     st.session_state.language = 'id'
 
-if st.sidebar.button("🇮🇩 Bahasa Indonesia"):
-    st.session_state.language = 'id'
-if st.sidebar.button("🇬🇧 English"):
-    st.session_state.language = 'en'
-
 lang = st.session_state.language
 
 labels = {
@@ -29,6 +24,7 @@ labels = {
         'bobot': "📌 Bobot Kriteria (Metode CRITIC)",
         'hasil': "📈 Hasil Rekomendasi Investasi",
         'download_hasil': "💾 Unduh Hasil",
+        'change_lang': "🇬🇧 English",
         'kriteria': ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)', 'Aset (Rp)',
                      'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)'],
         'status': {
@@ -51,6 +47,7 @@ labels = {
         'bobot': "📌 Criteria Weights (CRITIC Method)",
         'hasil': "📈 Investment Recommendation Result",
         'download_hasil': "💾 Download Result",
+        'change_lang': "🇮🇩 Bahasa Indonesia",
         'kriteria': ['ROI (%)', 'Initial Capital (Rp)', 'Avg. 3-Month Revenue (Rp)', 'Assets (Rp)',
                      'Product Innovation (1-5)', 'Market Opportunity (1-5)', 'Risk Level (1-5)'],
         'status': {
@@ -107,12 +104,17 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SIDEBAR ===
+st.sidebar.title("SPK Investasi Mahasiswa")
 manual_click = st.sidebar.button(labels[lang]['manual'], key="btn_manual")
 upload_click = st.sidebar.button(labels[lang]['upload'], key="btn_upload")
 
+if st.button(labels[lang]['change_lang']):
+    st.session_state.language = 'en' if lang == 'id' else 'id'
+    st.experimental_rerun()
+
 # === KONSTAN ===
 kriteria_cols = labels[lang]['kriteria']
-cost_indices = [1, 6]  # indeks kriteria cost
+cost_indices = [1, 6]
 
 if 'input_method' not in st.session_state:
     st.session_state.input_method = "Manual"
