@@ -2,18 +2,21 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+# === PAGE CONFIG ===
 st.set_page_config(page_title="SPK Investasi Mahasiswa", layout="wide")
 
-# === STYLING ===
+# === CUSTOM STYLE ===
 st.markdown("""
     <style>
     html, body, [class*="css"] {
         font-family: 'Segoe UI', sans-serif;
     }
+
     section[data-testid="stSidebar"] {
         background-color: #EAF4FF;
         border-right: 1px solid #D0E3F1;
     }
+
     div.stButton > button {
         width: 100%;
         background-color: #2196F3;
@@ -28,6 +31,7 @@ st.markdown("""
     div.stButton > button:hover {
         background-color: #0b7dda;
     }
+
     .stDownloadButton button {
         width: 100%;
         background-color: #00BFFF;
@@ -37,19 +41,29 @@ st.markdown("""
         border: none;
         margin-bottom: 10px;
     }
+
+    .dataframe th {
+        background-color: #F0F8FF;
+    }
+
+    .dataframe td {
+        text-align: center;
+        padding: 6px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # === SIDEBAR ===
 st.sidebar.title("SPK Investasi Mahasiswa")
 st.sidebar.markdown("### Metode Input Data")
+
 manual_click = st.sidebar.button("📝 Input Manual", key="btn_manual")
 upload_click = st.sidebar.button("📁 Upload File", key="btn_upload")
 
 # === KONSTAN ===
 kriteria_cols = ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)',
                  'Aset (Rp)', 'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)']
-cost_indices = [1, 6]  # indeks cost
+cost_indices = [1, 6]  # indeks kriteria cost
 
 # === SESSION ===
 if 'input_method' not in st.session_state:
@@ -58,6 +72,7 @@ if manual_click:
     st.session_state.input_method = "Manual"
 if upload_click:
     st.session_state.input_method = "Upload"
+
 input_method = st.session_state.input_method
 
 # === FUNGSI ===
@@ -101,34 +116,15 @@ st.title("📊 Sistem Pendukung Keputusan Investasi Usaha Mahasiswa")
 df_usaha = None
 
 if input_method == "Manual":
-    st.subheader("📝 Input Manual (Ramah Mobile)")
-    num = st.number_input("Jumlah Usaha", min_value=1, max_value=10, step=1)
-    usaha_list = []
-
-    for i in range(num):
-        with st.expander(f"➕ Formulir Usaha {i+1}", expanded=True):
-            nama = st.text_input(f"Nama Usaha", key=f"nama_{i}")
-            roi = st.number_input(f"ROI (%)", min_value=0.0, step=0.1, key=f"roi_{i}")
-            modal = st.number_input(f"Modal Awal (Rp)", min_value=0.0, step=1000.0, key=f"modal_{i}")
-            pendapatan = st.number_input(f"Pendapatan Rata-Rata 3 Bulan (Rp)", min_value=0.0, step=1000.0, key=f"pend_{i}")
-            aset = st.number_input(f"Aset (Rp)", min_value=0.0, step=1000.0, key=f"aset_{i}")
-            inovasi = st.slider(f"Inovasi Produk (1-5)", 1, 5, key=f"inov_{i}")
-            peluang = st.slider(f"Peluang Pasar (1-5)", 1, 5, key=f"peluang_{i}")
-            risiko = st.slider(f"Tingkat Risiko (1-5)", 1, 5, key=f"risiko_{i}")
-
-            usaha_list.append({
-                "Nama Usaha": nama,
-                "ROI (%)": roi,
-                "Modal Awal (Rp)": modal,
-                "Pendapatan Rata-Rata 3 Bulan (Rp)": pendapatan,
-                "Aset (Rp)": aset,
-                "Inovasi Produk (1-5)": inovasi,
-                "Peluang Pasar (1-5)": peluang,
-                "Tingkat Risiko (1-5)": risiko,
-            })
-
+    st.subheader("📝 Input Manual")
+    num = st.number_input("Jumlah Usaha", min_value=1, max_value=20, step=1)
+    default_data = pd.DataFrame({
+        "Nama Usaha": [f"Usaha {i+1}" for i in range(num)],
+        **{col: [0.0]*num for col in kriteria_cols}
+    })
+    df_input = st.data_editor(default_data, use_container_width=True, num_rows="dynamic")
     if st.button("💾 Simpan & Tampilkan Hasil", key="process_manual"):
-        df_usaha = pd.DataFrame(usaha_list)
+        df_usaha = df_input.copy()
 
 elif input_method == "Upload":
     st.subheader("📁 Upload File")
@@ -141,7 +137,8 @@ elif input_method == "Upload":
         label="⬇️ Unduh Template Kosong (CSV)",
         data=template_csv,
         file_name='template_input_usaha.csv',
-        mime='text/csv'
+        mime='text/csv',
+        help="Unduh format input kosong sebagai panduan"
     )
     uploaded_file = st.file_uploader("Unggah file CSV/XLSX", type=["csv", "xlsx"])
     if uploaded_file is not None:
@@ -178,8 +175,11 @@ if df_usaha is not None:
         df_output.style.format({
             "Skor CODAS": "{:.4f}",
             "Rekomendasi Investasi (Rp)": "Rp {:,.0f}"
-        }).set_properties(**{'text-align': 'center'}).set_properties(
-            subset=['Nama Usaha'], **{'text-align': 'left'}),
+        }).set_properties(**{
+            'text-align': 'center'
+        }).set_properties(subset=['Nama Usaha'], **{
+            'text-align': 'left'
+        }),
         use_container_width=True
     )
 
