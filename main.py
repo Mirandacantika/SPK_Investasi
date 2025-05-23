@@ -99,17 +99,17 @@ def calculate_codas(data_normalized, weights):
     score_normalized = (score - score.min()) / (score.max() - score.min())
     return score_normalized
 
-def get_status_and_recommendation(score):
+def get_status_and_recommendation(score, modal_awal):
     if score >= 0.81:
-        return "Sangat Layak", 20000000
+        return "Sangat Layak", modal_awal * 0.60
     elif score >= 0.61:
-        return "Layak", 15000000
+        return "Layak", modal_awal * 0.30
     elif score >= 0.41:
-        return "Cukup Layak", 10000000
+        return "Cukup Layak", modal_awal * 0.45
     elif score >= 0.21:
-        return "Kurang Layak", 5000000
+        return "Kurang Layak", modal_awal * 0.15
     else:
-        return "Tidak Layak", 0
+        return "Tidak Layak", 0.0
 
 # === MAIN ===
 st.title("📊 Sistem Pendukung Keputusan Investasi Usaha Mahasiswa")
@@ -165,7 +165,7 @@ if df_usaha is not None:
     df_usaha['Skor CODAS'] = calculate_codas(data_normalized, weights)
     df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').fillna(0).astype(int)
     df_usaha['Status Kelayakan'], df_usaha['Rekomendasi Investasi (Rp)'] = zip(
-        *df_usaha['Skor CODAS'].apply(get_status_and_recommendation))
+        *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])])
 
     st.subheader("📈 Hasil Rekomendasi Investasi")
     df_output = df_usaha[['Peringkat', 'Nama Usaha', 'Skor CODAS', 'Status Kelayakan', 'Rekomendasi Investasi (Rp)']]
