@@ -195,10 +195,10 @@ if input_method == "Manual":
 elif input_method == "Upload":
     st.subheader(TEXTS[lang]["upload_section"])
     template_df = pd.DataFrame({
-        "Nama Usaha": [""],
+        "Business Name": [""],
         **{KRITERIA_LABELS[lang][col]: [0.0] for col in kriteria_cols}
     })
-    template_df.columns = ["Nama Usaha"] + kriteria_cols
+    template_df.columns = ["Business Name"] + kriteria_cols
     template_csv = template_df.to_csv(index=False).encode('utf-8')
     st.download_button(TEXTS[lang]["download_template"], data=template_csv, file_name="template_input_usaha.csv", mime="text/csv")
     uploaded_file = st.file_uploader(TEXTS[lang]["upload_prompt"], type=["csv", "xlsx"])
