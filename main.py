@@ -108,14 +108,6 @@ st.sidebar.title("SPK Investasi Mahasiswa")
 manual_click = st.sidebar.button(labels[lang]['manual'], key="btn_manual")
 upload_click = st.sidebar.button(labels[lang]['upload'], key="btn_upload")
 
-if st.button(labels[lang]['change_lang']):
-    st.session_state.language = 'en' if lang == 'id' else 'id'
-    st.experimental_rerun()
-
-# === KONSTAN ===
-kriteria_cols = labels[lang]['kriteria']
-cost_indices = [1, 6]
-
 if 'input_method' not in st.session_state:
     st.session_state.input_method = "Manual"
 if manual_click:
@@ -123,6 +115,16 @@ if manual_click:
 if upload_click:
     st.session_state.input_method = "Upload"
 input_method = st.session_state.input_method
+
+# Tombol ubah bahasa (ditempatkan di bawah)
+st.markdown("---")
+if st.button(labels[lang]['change_lang']):
+    st.session_state.language = 'en' if lang == 'id' else 'id'
+    st.rerun()
+
+# === KONSTAN ===
+kriteria_cols = labels[lang]['kriteria']
+cost_indices = [1, 6]
 
 # === FUNGSI ===
 def calculate_critic(data, cost_indices=[]):
