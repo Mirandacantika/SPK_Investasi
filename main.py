@@ -60,6 +60,9 @@ labels = {
     }
 }
 
+standard_kriteria = ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)',
+                     'Aset (Rp)', 'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)']
+
 # === STYLING ===
 st.markdown("""
     <style>
@@ -123,10 +126,6 @@ if upload_click:
     st.session_state.input_method = "Upload"
 input_method = st.session_state.input_method
 
-# === KONSTAN ===
-kriteria_cols = labels[lang]['kriteria']
-cost_indices = [1, 6]
-
 # === FUNGSI ===
 def calculate_critic(data, cost_indices=[]):
     data_normalized = data.copy()
@@ -173,7 +172,7 @@ if input_method == "Manual":
     num = st.number_input(labels[lang]['num_usaha'], min_value=1, max_value=20, step=1)
     default_data = pd.DataFrame({
         "Business Name" if lang == 'en' else "Nama Usaha": [f"Business {i+1}" if lang == 'en' else f"Usaha {i+1}" for i in range(num)],
-        **{col: [0.0]*num for col in kriteria_cols}
+        **{col: [0.0]*num for col in labels[lang]['kriteria']}
     })
     df_input = st.data_editor(default_data, use_container_width=True, num_rows="dynamic")
     if st.button(labels[lang]['save'], key="process_manual"):
@@ -183,7 +182,7 @@ elif input_method == "Upload":
     st.subheader(labels[lang]['upload'])
     template_df = pd.DataFrame({
         "Business Name" if lang == 'en' else "Nama Usaha": [""],
-        **{col: [0.0] for col in kriteria_cols}
+        **{col: [0.0] for col in labels[lang]['kriteria']}
     })
     template_csv = template_df.to_csv(index=False).encode('utf-8')
     st.download_button(
@@ -199,15 +198,23 @@ elif input_method == "Upload":
                 df_usaha = pd.read_csv(uploaded_file)
             else:
                 df_usaha = pd.read_excel(uploaded_file)
-            st.success("✅ File loaded successfully!" if lang == 'en' else "✅ Data berhasil dimuat!")
+
+            missing = set(labels[lang]['kriteria']) - set(df_usaha.columns)
+            if missing:
+                st.error("❌ Kolom berikut tidak ditemukan: " + ", ".join(missing))
+                df_usaha = None
+            else:
+                st.success("✅ Data berhasil dimuat!" if lang == 'id' else "✅ File loaded successfully!")
         except Exception as e:
-            st.error(f"Failed to read file: {e}" if lang == 'en' else f"Gagal membaca file: {e}")
+            st.error(f"Gagal membaca file: {e}" if lang == 'id' else f"Failed to read file: {e}")
 
 if df_usaha is not None:
     st.subheader(labels[lang]['data_usaha'])
     st.dataframe(df_usaha.reset_index(drop=True), use_container_width=True)
 
-    df_kriteria = df_usaha[kriteria_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
+    col_map = dict(zip(labels[lang]['kriteria'], standard_kriteria))
+    df_kriteria = df_usaha.rename(columns=col_map)[standard_kriteria].apply(pd.to_numeric, errors='coerce').fillna(0)
+
     weights, data_normalized = calculate_critic(df_kriteria, cost_indices)
 
     st.subheader(labels[lang]['bobot'])
@@ -216,10 +223,11 @@ if df_usaha is not None:
     df_usaha['Skor CODAS'] = calculate_codas(data_normalized, weights)
     df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').fillna(0).astype(int)
     df_usaha['Status Kelayakan'], df_usaha['Rekomendasi Investasi (Rp)'] = zip(
-        *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria[kriteria_cols[1]])])
+        *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])])
 
     st.subheader(labels[lang]['hasil'])
-    df_output = df_usaha[['Peringkat', 'Nama Usaha' if lang == 'id' else 'Business Name', 'Skor CODAS', 'Status Kelayakan', 'Rekomendasi Investasi (Rp)']]
+    nama_col = 'Business Name' if lang == 'en' else 'Nama Usaha'
+    df_output = df_usaha[['Peringkat', nama_col, 'Skor CODAS', 'Status Kelayakan', 'Rekomendasi Investasi (Rp)']]
     df_output = df_output.sort_values(by='Peringkat').reset_index(drop=True)
 
     st.dataframe(
@@ -227,7 +235,7 @@ if df_usaha is not None:
             "Skor CODAS": "{:.4f}",
             "Rekomendasi Investasi (Rp)": "Rp {:,.0f}"
         }).set_properties(**{'text-align': 'center'}).set_properties(
-            subset=['Nama Usaha' if lang == 'id' else 'Business Name'], **{'text-align': 'left'}),
+            subset=[nama_col], **{'text-align': 'left'}),
         use_container_width=True
     )
 
