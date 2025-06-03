@@ -153,9 +153,9 @@ def get_status_and_recommendation(score, modal_awal):
     if score >= 0.81:
         return stts['sangat_layak'], modal_awal * 0.60
     elif score >= 0.61:
-        return stts['layak'], modal_awal * 0.30
+        return stts['layak'], modal_awal * 0.45
     elif score >= 0.41:
-        return stts['cukup_layak'], modal_awal * 0.45
+        return stts['cukup_layak'], modal_awal * 0.30
     elif score >= 0.21:
         return stts['kurang_layak'], modal_awal * 0.15
     else:
