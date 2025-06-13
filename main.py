@@ -145,8 +145,8 @@ def calculate_codas(data_normalized, weights):
     ideal_solution = weighted_data.min()
     euclidean = np.sqrt(((weighted_data - ideal_solution) ** 2).sum(axis=1))
     taxicab = np.abs(weighted_data - ideal_solution).sum(axis=1)
-    score = euclidean + taxicab
-    return (score - score.min()) / (score.max() - score.min())
+    score = euclidean + 0.02 * taxicab
+    return score
 
 def get_status_and_recommendation(score, modal_awal):
     stts = labels[lang]['status']
