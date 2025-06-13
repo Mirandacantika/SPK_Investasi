@@ -127,26 +127,52 @@ input_method = st.session_state.input_method
 
 # === FUNGSI ===
 def calculate_critic(data, cost_cols=[]):
-    data_normalized = data.copy()
+    import numpy as np
+
+    # Step 1: Normalisasi
+    normalized_data = data.copy()
     for col in data.columns:
         if col in cost_cols:
-            data_normalized[col] = data[col].min() / data[col]
+            normalized_data[col] = data[col].min() / data[col]
         else:
-            data_normalized[col] = data[col] / data[col].max()
-    std_dev = data_normalized.std()
-    corr_matrix = data_normalized.corr()
-    conflict = 1 - corr_matrix.abs()
-    info = std_dev * conflict.sum()
-    weights = info / info.sum()
-    return weights, data_normalized
+            normalized_data[col] = data[col] / data[col].max()
 
-def calculate_codas(data_normalized, weights):
-    weighted_data = data_normalized * weights.values
-    ideal_solution = weighted_data.min()
-    euclidean = np.sqrt(((weighted_data - ideal_solution) ** 2).sum(axis=1))
-    taxicab = np.abs(weighted_data - ideal_solution).sum(axis=1)
-    score = euclidean + 0.02 * taxicab
-    return score
+    # Step 2: Hitung standar deviasi
+    std_dev = normalized_data.std()
+
+    # Step 3: Hitung korelasi antar kriteria
+    correlation_matrix = normalized_data.corr()
+
+    # Step 4: Hitung informasi Cj
+    info = {}
+    for col in data.columns:
+        conflict_sum = sum(1 - correlation_matrix.loc[col, other]
+                           for other in data.columns if other != col)
+        info[col] = std_dev[col] * conflict_sum
+
+    # Step 5: Hitung bobot wj
+    total_info = sum(info.values())
+    weights = {col: info[col] / total_info for col in data.columns}
+
+    # Output: Series bobot + data yang sudah ternormalisasi
+    return pd.Series(weights), normalized_data
+
+
+def calculate_codas(normalized_data, weights):
+    # Step 1: Hitung nilai r_ij = n_ij * w_j
+    weighted_data = normalized_data * weights
+
+    # Step 2: Solusi ideal negatif
+    ideal_negative = weighted_data.min()
+
+    # Step 3: Hitung Euclidean dan Taxicab
+    euclidean = ((weighted_data - ideal_negative)**2).sum(axis=1).pow(0.5)
+    taxicab = (weighted_data - ideal_negative).abs().sum(axis=1)
+
+    # Step 4: Hitung skor CODAS
+    codas_score = euclidean + 0.02 * taxicab
+    return codas_score
+
 
 def get_status_and_recommendation(score, modal_awal):
     stts = labels[lang]['status']
