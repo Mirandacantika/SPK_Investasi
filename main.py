@@ -126,70 +126,27 @@ if upload_click:
 input_method = st.session_state.input_method
 
 # === FUNGSI ===
-def calculate_critic(data, cost_cols=[]):
-    """
-    Menghitung bobot kriteria dengan metode CRITIC.
-
-    Parameters:
-        data (pd.DataFrame): Data asli (belum ternormalisasi).
-        cost_cols (list of str): Nama-nama kolom yang bertipe cost.
-
-    Returns:
-        weights (pd.Series): Bobot kriteria hasil metode CRITIC.
-        normalized_data (pd.DataFrame): Data ternormalisasi.
-    """
-    # Step 1: Normalisasi
-    normalized_data = data.copy()
-    for col in data.columns:
-        if col in cost_cols:
-            normalized_data[col] = data[col].min() / data[col]
+def calculate_critic(data, cost_indices=[]):
+    data_normalized = data.copy()
+    for i, col in enumerate(data.columns):
+        if i in cost_indices:
+            data_normalized[col] = data[col].min() / data[col]
         else:
-            normalized_data[col] = data[col] / data[col].max()
+            data_normalized[col] = data[col] / data[col].max()
+    std_dev = data_normalized.std()
+    corr_matrix = data_normalized.corr()
+    conflict = 1 - corr_matrix.abs()
+    info = std_dev * conflict.sum()
+    weights = info / info.sum()
+    return weights, data_normalized
 
-    # Step 2: Hitung standar deviasi tiap kriteria
-    std_dev = normalized_data.std()
-
-    # Step 3: Hitung matriks korelasi Pearson antar kriteria
-    correlation_matrix = normalized_data.corr()
-
-    # Step 4: Hitung informasi kriteria Cj = σj * Σ(1 - |rjk|)
-    info = {}
-    for col in data.columns:
-        conflict_sum = sum(1 - abs(correlation_matrix.loc[col, other])
-                           for other in data.columns if other != col)
-        info[col] = std_dev[col] * conflict_sum
-
-    # Step 5: Hitung bobot wj = Cj / ΣCj (hindari div/0)
-    total_info = sum(info.values()) if sum(info.values()) != 0 else 1e-9
-    weights = {col: info[col] / total_info for col in data.columns}
-
-    return pd.Series(weights), normalized_data
-
-def calculate_codas(normalized_data, weights):
-    """
-    Menghitung skor akhir dengan metode CODAS.
-
-    Parameters:
-        normalized_data (pd.DataFrame): Data ternormalisasi.
-        weights (pd.Series): Bobot kriteria dari metode CRITIC.
-
-    Returns:
-        pd.Series: Skor CODAS untuk setiap alternatif.
-    """
-    # Step 1: Hitung matriks performa berbobot
-    weighted_data = normalized_data * weights
-
-    # Step 2: Solusi ideal negatif (nilai minimum per kriteria)
-    ideal_negative = weighted_data.min()
-
-    # Step 3: Hitung jarak Euclidean dan Taxicab ke solusi ideal negatif
-    euclidean = ((weighted_data - ideal_negative) ** 2).sum(axis=1).pow(0.5)
-    taxicab = (weighted_data - ideal_negative).abs().sum(axis=1)
-
-    # Step 4: Hitung skor CODAS
-    codas_score = euclidean + 0.02 * taxicab
-    return codas_score
-
+def calculate_codas(data_normalized, weights):
+    weighted_data = data_normalized * weights.values
+    ideal_solution = weighted_data.min()
+    euclidean = np.sqrt(((weighted_data - ideal_solution) ** 2).sum(axis=1))
+    taxicab = np.abs(weighted_data - ideal_solution).sum(axis=1)
+    score = euclidean + taxicab
+    return (score - score.min()) / (score.max() - score.min())
 
 def get_status_and_recommendation(score, modal_awal):
     stts = labels[lang]['status']
@@ -256,10 +213,7 @@ if df_usaha is not None:
     col_map = dict(zip(labels[lang]['kriteria'], standard_kriteria))
     df_kriteria = df_usaha.rename(columns=col_map)[standard_kriteria].apply(pd.to_numeric, errors='coerce').fillna(0)
 
-    weights, data_normalized = calculate_critic(
-    df_kriteria,
-    cost_cols=["Modal Awal (Rp)", "Tingkat Risiko (1-5)"]
-)
+    weights, data_normalized = calculate_critic(df_kriteria, cost_indices=[1, 6])
 
     st.subheader(labels[lang]['bobot'])
     st.write(weights)
