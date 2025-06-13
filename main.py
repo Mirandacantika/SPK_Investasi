@@ -126,10 +126,10 @@ if upload_click:
 input_method = st.session_state.input_method
 
 # === FUNGSI ===
-def calculate_critic(data, cost_indices=[]):
+def calculate_critic(data, cost_cols=[]):
     data_normalized = data.copy()
-    for i, col in enumerate(data.columns):
-        if i in cost_indices:
+    for col in data.columns:
+        if col in cost_cols:
             data_normalized[col] = data[col].min() / data[col]
         else:
             data_normalized[col] = data[col] / data[col].max()
@@ -213,7 +213,10 @@ if df_usaha is not None:
     col_map = dict(zip(labels[lang]['kriteria'], standard_kriteria))
     df_kriteria = df_usaha.rename(columns=col_map)[standard_kriteria].apply(pd.to_numeric, errors='coerce').fillna(0)
 
-    weights, data_normalized = calculate_critic(df_kriteria, cost_indices=[1, 6])
+    weights, data_normalized = calculate_critic(
+    df_kriteria,
+    cost_cols=["Modal Awal (Rp)", "Tingkat Risiko (1-5)"]
+)
 
     st.subheader(labels[lang]['bobot'])
     st.write(weights)
