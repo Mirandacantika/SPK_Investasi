@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from io import StringIO
-from scipy.spatial.distance import euclidean, cityblock
+from scipy.spatial.distance import euclidean as euclid_dist, cityblock
 
 # === PAGE CONFIG ===
 st.set_page_config(page_title="SPK Investasi Mahasiswa", layout="wide")
@@ -116,10 +116,11 @@ def calculate_critic(data, cost_cols=[]):
     weights = info / info.sum()
     return weights, norm
 
-def calculate_codas(norm_data, weights):
+# CODAS versi lengkap sesuai skripsi (menggunakan Σ hᵒₖ antar semua alternatif)
+def calculate_codas_full(norm_data, weights):
     weighted = norm_data * weights
     ideal_neg = weighted.min()
-    euclidean_dist = weighted.apply(lambda row: euclidean(row, ideal_neg), axis=1)
+    euclidean_dist = weighted.apply(lambda row: euclid_dist(row, ideal_neg), axis=1)
     taxicab_dist = weighted.apply(lambda row: cityblock(row, ideal_neg), axis=1)
 
     mu = 0.02
@@ -190,7 +191,7 @@ if df_usaha is not None:
     st.subheader(labels[lang]['bobot'])
     st.write(weights)
 
-    df_usaha["Skor CODAS"] = calculate_codas(df_normalized, weights)
+    df_usaha["Skor CODAS"] = calculate_codas_full(df_normalized, weights)
     df_usaha["Peringkat"] = df_usaha["Skor CODAS"].rank(ascending=False, method='min').astype(int)
     df_usaha["Status Kelayakan"], df_usaha["Rekomendasi Investasi (Rp)"] = zip(*[
         get_status(score, modal) for score, modal in zip(df_usaha["Skor CODAS"], df_kriteria["Modal Awal (Rp)"])
