@@ -26,8 +26,15 @@ labels = {
         'hasil': "📈 Hasil Rekomendasi Investasi",
         'download_hasil': "💾 Unduh Hasil",
         'change_lang': "🇬🇧 English",
-        'kriteria': ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)', 'Aset (Rp)',
-                     'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)'],
+        'kriteria': [
+            'ROI (%)',
+            'Modal Awal (Rp)',
+            'Pendapatan Rata-Rata 3 Bulan (Rp)',
+            'Aset (Rp)',
+            'Inovasi Produk (1-5)',
+            'Peluang Pasar (1-5)',
+            'Tingkat Risiko (1-5)'
+        ],
         'nama_usaha': 'Nama Usaha',
         'status': {
             'sangat_layak': "Sangat Layak",
@@ -39,8 +46,6 @@ labels = {
         'error_kolom': "❗ Kolom pada file tidak sesuai dengan format yang diharapkan."
     }
 }
-
-standard_kriteria = labels['id']['kriteria']
 
 # === CSS STYLING ===
 st.markdown("""
@@ -116,13 +121,15 @@ def calculate_critic(data, cost_cols=[]):
     weights = info / info.sum()
     return weights, norm
 
-# CODAS versi lengkap sesuai skripsi (menggunakan Σ hᵒₖ antar semua alternatif)
 def calculate_codas_full(norm_data, weights):
+    # Weighted normalized matrix
     weighted = norm_data * weights
+    # Negative ideal
     ideal_neg = weighted.min()
-    euclidean_dist = weighted.apply(lambda row: euclid_dist(row, ideal_neg), axis=1)
-    taxicab_dist = weighted.apply(lambda row: cityblock(row, ideal_neg), axis=1)
-
+    # Distances
+    eu_dist = weighted.apply(lambda row: euclid_dist(row, ideal_neg), axis=1)
+    tb_dist = weighted.apply(lambda row: cityblock(row, ideal_neg), axis=1)
+    # Ra scoring
     mu = 0.02
     scores = []
     for i in range(len(weighted)):
@@ -130,8 +137,8 @@ def calculate_codas_full(norm_data, weights):
         for j in range(len(weighted)):
             if i == j:
                 continue
-            e_diff = euclidean_dist[i] - euclidean_dist[j]
-            t_diff = taxicab_dist[i] - taxicab_dist[j]
+            e_diff = eu_dist[i] - eu_dist[j]
+            t_diff = tb_dist[i] - tb_dist[j]
             hik = e_diff if abs(e_diff) > mu else e_diff + mu * t_diff
             ra_i += hik
         scores.append(ra_i)
@@ -156,6 +163,7 @@ def validate_csv_columns(df, expected_cols):
 st.title(labels[lang]['title'])
 df_usaha = None
 
+# Input manual
 if input_method == "Manual":
     st.subheader(labels[lang]['manual'])
     num = st.number_input(labels[lang]['num_usaha'], min_value=1, max_value=20, step=1)
@@ -167,12 +175,19 @@ if input_method == "Manual":
     if st.button(labels[lang]['save']):
         df_usaha = df_input.copy()
 
+# Input via CSV
 elif input_method == "Upload":
     st.subheader(labels[lang]['upload'])
-    template_df = pd.DataFrame({labels[lang]['nama_usaha']: [""], **{col: [0.0] for col in labels[lang]['kriteria']}})
-    st.download_button(label=labels[lang]['download_template'],
-                       data=template_df.to_csv(index=False).encode('utf-8'),
-                       file_name='template_input_usaha.csv', mime='text/csv')
+    template_df = pd.DataFrame({
+        labels[lang]['nama_usaha']: [""],
+        **{col: [0.0] for col in labels[lang]['kriteria']}
+    })
+    st.download_button(
+        label=labels[lang]['download_template'],
+        data=template_df.to_csv(index=False).encode('utf-8'),
+        file_name='template_input_usaha.csv',
+        mime='text/csv'
+    )
     uploaded_file = st.file_uploader(labels[lang]['upload_prompt'], type=["csv"])
     if uploaded_file:
         df_candidate = pd.read_csv(uploaded_file)
@@ -182,23 +197,47 @@ elif input_method == "Upload":
         else:
             st.error(labels[lang]['error_kolom'])
 
+# Proses & tampilkan
 if df_usaha is not None:
     st.subheader(labels[lang]['data_usaha'])
     st.dataframe(df_usaha, use_container_width=True)
 
+    # Hitung CRITIC
     df_kriteria = df_usaha[labels[lang]['kriteria']].apply(pd.to_numeric, errors='coerce').fillna(0)
-    weights, df_normalized = calculate_critic(df_kriteria, cost_cols=["Modal Awal (Rp)", "Tingkat Risiko (1-5)"])
+    weights, df_norm = calculate_critic(
+        df_kriteria,
+        cost_cols=["Modal Awal (Rp)", "Tingkat Risiko (1-5)"]
+    )
     st.subheader(labels[lang]['bobot'])
     st.write(weights)
 
-    df_usaha["Skor CODAS"] = calculate_codas_full(df_normalized, weights)
+    # Hitung CODAS
+    df_usaha["Skor CODAS"] = calculate_codas_full(df_norm, weights)
     df_usaha["Peringkat"] = df_usaha["Skor CODAS"].rank(ascending=False, method='min').astype(int)
     df_usaha["Status Kelayakan"], df_usaha["Rekomendasi Investasi (Rp)"] = zip(*[
-        get_status(score, modal) for score, modal in zip(df_usaha["Skor CODAS"], df_kriteria["Modal Awal (Rp)"])
+        get_status(score, modal)
+        for score, modal in zip(df_usaha["Skor CODAS"], df_kriteria["Modal Awal (Rp)"])
     ])
 
+    # Tampilkan & unduh hasil
     st.subheader(labels[lang]['hasil'])
-    hasil = df_usaha[[labels[lang]['nama_usaha'], "Skor CODAS", "Peringkat", "Status Kelayakan", "Rekomendasi Investasi (Rp)"]]
-    hasil = hasil.sort_values("Peringkat").reset_index(drop=True)
-    st.dataframe(hasil.style.format({"Skor CODAS": "{:.4f}", "Rekomendasi Investasi (Rp)": "Rp {:,.0f}"}), use_container_width=True)
-    st.download_button(labels[lang]['download_hasil'], data=hasil.to_csv(index=False), file_name="hasil_investasi.csv", mime="text/csv")
+    hasil = df_usaha[[
+        labels[lang]['nama_usaha'],
+        "Skor CODAS",
+        "Peringkat",
+        "Status Kelayakan",
+        "Rekomendasi Investasi (Rp)"
+    ]].sort_values("Peringkat").reset_index(drop=True)
+    st.dataframe(
+        hasil.style.format({
+            "Skor CODAS": "{:.4f}",
+            "Rekomendasi Investasi (Rp)": "Rp {:,.0f}"
+        }),
+        use_container_width=True
+    )
+    st.download_button(
+        labels[lang]['download_hasil'],
+        data=hasil.to_csv(index=False),
+        file_name="hasil_investasi.csv",
+        mime="text/csv"
+    )
