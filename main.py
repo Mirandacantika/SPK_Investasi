@@ -1,3 +1,47 @@
+
+import numpy as np
+import pandas as pd
+
+def calculate_critic(df, cost_cols=[]):
+    # Step 1: Normalisasi (benefit / cost)
+    norm = df.copy()
+    for col in df.columns:
+        if col in cost_cols:
+            norm[col] = df[col].min() / df[col]
+        else:
+            norm[col] = df[col] / df[col].max()
+
+    # Step 2: Standar deviasi
+    std_dev = norm.std()
+
+    # Step 3: Korelasi absolut
+    corr = norm.corr().abs()
+
+    # Step 4: Konflik informasi
+    conflict = 1 - corr
+    info = std_dev * conflict.sum()
+
+    # Step 5: Bobot
+    weights = info / info.sum()
+    return weights, norm
+
+def calculate_codas(df_normalized, weights, tau=0.02):
+    # Step 1: Matriks r_ij
+    weighted = df_normalized * weights
+
+    # Step 2: Solusi ideal negatif
+    s_j = weighted.min()
+
+    # Step 3: Euclidean & Taxicab untuk semua alternatif
+    E = ((weighted - s_j) ** 2).sum(axis=1).pow(0.5)
+    T = (weighted - s_j).abs().sum(axis=1)
+    H = E + tau * T
+
+    # Step 4: Normalisasi skor 0–1
+    H_norm = (H - H.min()) / (H.max() - H.min())
+    return H_norm
+
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -34,35 +78,10 @@ labels = {
             'kurang_layak': "Kurang Layak",
             'tidak_layak': "Tidak Layak"
         }
-    },
-    'en': {
-        'title': "📊 Decision Support System for Student Business Investment",
-        'manual': "📝 Manual Input",
-        'upload': "📁 Upload File",
-        'num_usaha': "Number of Businesses",
-        'save': "💾 Save & Show Result",
-        'download_template': "⬇️ Download Blank Template (CSV)",
-        'upload_prompt': "Upload CSV file",
-        'data_usaha': "📄 Student Business Data",
-        'bobot': "📌 Criteria Weights (CRITIC Method)",
-        'hasil': "📈 Investment Recommendation Result",
-        'download_hasil': "💾 Download Result",
-        'change_lang': "🇮🇩 Bahasa Indonesia",
-        'kriteria': ['ROI (%)', 'Initial Capital (Rp)', 'Avg. 3-Month Revenue (Rp)', 'Assets (Rp)',
-                     'Product Innovation (1-5)', 'Market Opportunity (1-5)', 'Risk Level (1-5)'],
-        'nama_usaha': 'Business Name',
-        'status': {
-            'sangat_layak': "Highly Recommended",
-            'layak': "Recommended",
-            'cukup_layak': "Moderately Recommended",
-            'kurang_layak': "Less Recommended",
-            'tidak_layak': "Not Recommended"
-        }
     }
 }
 
-standard_kriteria = ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)',
-                     'Aset (Rp)', 'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)']
+standard_kriteria = labels['id']['kriteria']
 
 # === STYLING ===
 st.markdown("""
@@ -125,29 +144,6 @@ if upload_click:
     st.session_state.input_method = "Upload"
 input_method = st.session_state.input_method
 
-# === FUNGSI ===
-def calculate_critic(data, cost_indices=[]):
-    data_normalized = data.copy()
-    for i, col in enumerate(data.columns):
-        if i in cost_indices:
-            data_normalized[col] = data[col].min() / data[col]
-        else:
-            data_normalized[col] = data[col] / data[col].max()
-    std_dev = data_normalized.std()
-    corr_matrix = data_normalized.corr()
-    conflict = 1 - corr_matrix.abs()
-    info = std_dev * conflict.sum()
-    weights = info / info.sum()
-    return weights, data_normalized
-
-def calculate_codas(data_normalized, weights):
-    weighted_data = data_normalized * weights.values
-    ideal_solution = weighted_data.min()
-    euclidean = np.sqrt(((weighted_data - ideal_solution) ** 2).sum(axis=1))
-    taxicab = np.abs(weighted_data - ideal_solution).sum(axis=1)
-    score = euclidean + taxicab
-    return (score - score.min()) / (score.max() - score.min())
-
 def get_status_and_recommendation(score, modal_awal):
     stts = labels[lang]['status']
     if score >= 0.81:
@@ -192,36 +188,26 @@ elif input_method == "Upload":
     uploaded_file = st.file_uploader(labels[lang]['upload_prompt'], type=["csv"])
     if uploaded_file is not None:
         try:
-            if uploaded_file.name.endswith(".csv"):
-                df_usaha = pd.read_csv(uploaded_file)
-            else:
-                df_usaha = pd.read_excel(uploaded_file)
-
-            missing = set(labels[lang]['kriteria']) - set(df_usaha.columns)
-            if missing:
-                st.error("❌ Kolom berikut tidak ditemukan: " + ", ".join(missing))
-                df_usaha = None
-            else:
-                st.success("✅ Data berhasil dimuat!" if lang == 'id' else "✅ File loaded successfully!")
+            df_usaha = pd.read_csv(uploaded_file)
         except Exception as e:
-            st.error(f"Gagal membaca file: {e}" if lang == 'id' else f"Failed to read file: {e}")
+            st.error(f"Gagal membaca file: {e}")
+            df_usaha = None
 
 if df_usaha is not None:
     st.subheader(labels[lang]['data_usaha'])
     st.dataframe(df_usaha.reset_index(drop=True), use_container_width=True)
 
-    col_map = dict(zip(labels[lang]['kriteria'], standard_kriteria))
-    df_kriteria = df_usaha.rename(columns=col_map)[standard_kriteria].apply(pd.to_numeric, errors='coerce').fillna(0)
-
-    weights, data_normalized = calculate_critic(df_kriteria, cost_indices=[1, 6])
+    df_kriteria = df_usaha[labels[lang]['kriteria']].apply(pd.to_numeric, errors='coerce').fillna(0)
+    weights, df_normalized = calculate_critic(df_kriteria, cost_cols=["Modal Awal (Rp)", "Tingkat Risiko (1-5)"])
 
     st.subheader(labels[lang]['bobot'])
     st.write(weights)
 
-    df_usaha['Skor CODAS'] = calculate_codas(data_normalized, weights)
+    df_usaha['Skor CODAS'] = calculate_codas(df_normalized, weights)
     df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').astype(int)
     df_usaha['Status Kelayakan'], df_usaha['Rekomendasi Investasi (Rp)'] = zip(
-        *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])])
+        *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])]
+    )
 
     st.subheader(labels[lang]['hasil'])
     df_usaha[labels[lang]['nama_usaha']] = df_usaha[labels[lang]['nama_usaha']].fillna("-")
