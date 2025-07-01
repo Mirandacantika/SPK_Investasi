@@ -104,6 +104,22 @@ labels = {
     }
 }
 
+kriteria_map = {
+    'ROI (%)': 'ROI (%)',
+    'Initial Capital (Rp)': 'Modal Awal (Rp)',
+    'Avg. 3-Month Revenue (Rp)': 'Pendapatan Rata-Rata 3 Bulan (Rp)',
+    'Assets (Rp)': 'Aset (Rp)',
+    'Product Innovation (1-5)': 'Inovasi Produk (1-5)',
+    'Market Opportunity (1-5)': 'Peluang Pasar (1-5)',
+    'Risk Level (1-5)': 'Tingkat Risiko (1-5)',
+    'Modal Awal (Rp)': 'Modal Awal (Rp)',  # untuk ID
+    'Pendapatan Rata-Rata 3 Bulan (Rp)': 'Pendapatan Rata-Rata 3 Bulan (Rp)',
+    'Aset (Rp)': 'Aset (Rp)',
+    'Inovasi Produk (1-5)': 'Inovasi Produk (1-5)',
+    'Peluang Pasar (1-5)': 'Peluang Pasar (1-5)',
+    'Tingkat Risiko (1-5)': 'Tingkat Risiko (1-5)'
+}
+
 
 standard_kriteria = labels['id']['kriteria']
 
@@ -221,7 +237,8 @@ if df_usaha is not None:
     st.subheader(labels[lang]['data_usaha'])
     st.dataframe(df_usaha.reset_index(drop=True), use_container_width=True)
 
-    df_kriteria = df_usaha[labels[lang]['kriteria']].apply(pd.to_numeric, errors='coerce').fillna(0)
+   # Rename kolom ke standar internal agar sesuai perhitungan
+    df_kriteria = df_usaha.rename(columns=kriteria_map)[standard_kriteria].apply(pd.to_numeric, errors='coerce').fillna(0)
     weights, df_normalized = calculate_critic(df_kriteria, cost_cols=["Modal Awal (Rp)", "Tingkat Risiko (1-5)"])
 
     st.subheader(labels[lang]['bobot'])
@@ -230,7 +247,9 @@ if df_usaha is not None:
     df_usaha['Skor CODAS'] = calculate_codas(df_normalized, weights)
     df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').astype(int)
     df_usaha['Status Kelayakan'], df_usaha['Rekomendasi Investasi (Rp)'] = zip(
-        *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])]
+        *[get_status_and_recommendation(score, modal) for score, modal in zip(
+    df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)']
+)][get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])]
     )
 
     st.subheader(labels[lang]['hasil'])
