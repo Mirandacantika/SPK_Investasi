@@ -77,8 +77,33 @@ labels = {
             'kurang_layak': "Kurang Layak",
             'tidak_layak': "Tidak Layak"
         }
+    },
+    'en': {
+        'title': "📊 Decision Support System for Student Business Investment",
+        'manual': "📝 Manual Input",
+        'upload': "📁 Upload File",
+        'num_usaha': "Number of Businesses",
+        'save': "💾 Save & Show Result",
+        'download_template': "⬇ Download Blank Template (CSV)",
+        'upload_prompt': "Upload CSV File",
+        'data_usaha': "📄 Student Business Data",
+        'bobot': "📌 Criteria Weights (CRITIC Method)",
+        'hasil': "📈 Investment Recommendation Result",
+        'download_hasil': "💾 Download Result",
+        'change_lang': "🇮🇩 Bahasa Indonesia",
+        'kriteria': ['ROI (%)', 'Initial Capital (Rp)', 'Avg. 3-Month Revenue (Rp)', 'Assets (Rp)',
+                     'Product Innovation (1-5)', 'Market Opportunity (1-5)', 'Risk Level (1-5)'],
+        'nama_usaha': 'Business Name',
+        'status': {
+            'sangat_layak': "Highly Recommended",
+            'layak': "Recommended",
+            'cukup_layak': "Moderately Recommended",
+            'kurang_layak': "Less Recommended",
+            'tidak_layak': "Not Recommended"
+        }
     }
 }
+
 
 standard_kriteria = labels['id']['kriteria']
 
