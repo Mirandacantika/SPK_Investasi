@@ -1,46 +1,3 @@
-import numpy as np
-import pandas as pd
-
-def calculate_critic(df, cost_cols=[]):
-    # Step 1: Normalisasi (benefit / cost)
-    norm = df.copy()
-    for col in df.columns:
-        if col in cost_cols:
-            norm[col] = df[col].min() / df[col]
-        else:
-            norm[col] = df[col] / df[col].max()
-
-    # Step 2: Standar deviasi
-    std_dev = norm.std()
-
-    # Step 3: Korelasi absolut
-    corr = norm.corr().abs()
-
-    # Step 4: Konflik informasi
-    conflict = 1 - corr
-    info = std_dev * conflict.sum()
-
-    # Step 5: Bobot
-    weights = info / info.sum()
-    return weights, norm
-
-def calculate_codas(df_normalized, weights, tau=0.02):
-    # Step 1: Matriks r_ij
-    weighted = df_normalized * weights
-
-    # Step 2: Solusi ideal negatif
-    s_j = weighted.min()
-
-    # Step 3: Euclidean & Taxicab untuk semua alternatif
-    E = ((weighted - s_j) ** 2).sum(axis=1).pow(0.5)
-    T = (weighted - s_j).abs().sum(axis=1)
-    H = E + tau * T
-
-    # Step 4: Normalisasi skor 0–1
-    H_norm = (H - H.min()) / (H.max() - H.min())
-    return H_norm
-
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -48,50 +5,20 @@ import numpy as np
 # === PAGE CONFIG ===
 st.set_page_config(page_title="SPK Investasi Mahasiswa", layout="wide")
 
-# === BAHASA ===
-if 'language' not in st.session_state:
-    st.session_state.language = 'id'
-lang = st.session_state.language
-
-labels = {
-    'id': {
-        'title': "📊 Sistem Pendukung Keputusan Investasi Usaha Mahasiswa",
-        'manual': "📝 Input Manual",
-        'upload': "📁 Upload File",
-        'num_usaha': "Jumlah Usaha",
-        'save': "💾 Simpan & Tampilkan Hasil",
-        'download_template': "⬇ Unduh Template Kosong (CSV)",
-        'upload_prompt': "Unggah file CSV",
-        'data_usaha': "📄 Data Usaha Mahasiswa",
-        'bobot': "📌 Bobot Kriteria (Metode CRITIC)",
-        'hasil': "📈 Hasil Rekomendasi Investasi",
-        'download_hasil': "💾 Unduh Hasil",
-        'change_lang': "🇬🇧 English",
-        'kriteria': ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)', 'Aset (Rp)',
-                     'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)'],
-        'nama_usaha': 'Nama Usaha',
-        'status': {
-            'sangat_layak': "Sangat Layak",
-            'layak': "Layak",
-            'cukup_layak': "Cukup Layak",
-            'kurang_layak': "Kurang Layak",
-            'tidak_layak': "Tidak Layak"
-        }
-    }
-}
-
-standard_kriteria = labels['id']['kriteria']
-
-# === STYLING ===
+# === CUSTOM STYLE ===
 st.markdown("""
     <style>
     html, body, [class*="css"] {
         font-family: 'Segoe UI', sans-serif;
+        background-color: #ffffff;
+        color: #1F1F1F;
     }
+
     section[data-testid="stSidebar"] {
         background-color: #EAF4FF;
         border-right: 1px solid #D0E3F1;
     }
+
     div.stButton > button {
         width: 100%;
         background-color: #2196F3;
@@ -106,17 +33,22 @@ st.markdown("""
     div.stButton > button:hover {
         background-color: #0b7dda;
     }
+
     .stDownloadButton button {
-        width: 100%;
         background-color: #00BFFF;
         color: white;
         border-radius: 8px;
         font-weight: bold;
         border: none;
-        margin-bottom: 10px;
     }
+
+    h1, h2, h3, h4 {
+        color: #1F1F1F;
+    }
+
     .dataframe th {
         background-color: #F0F8FF;
+        color: #1F1F1F;
     }
     .dataframe td {
         text-align: center;
@@ -126,101 +58,132 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SIDEBAR ===
+st.sidebar.image("https://img.icons8.com/ios-filled/50/database.png", width=30)
 st.sidebar.title("SPK Investasi Mahasiswa")
-manual_click = st.sidebar.button(labels[lang]['manual'], key="btn_manual")
-upload_click = st.sidebar.button(labels[lang]['upload'], key="btn_upload")
-with st.sidebar:
-    st.markdown("---")
-    if st.button(labels[lang]['change_lang']):
-        st.session_state.language = 'en' if lang == 'id' else 'id'
-        st.rerun()
+st.sidebar.markdown("### Metode Input Data")
 
+# Tombol vertikal
+manual_click = st.sidebar.button("📝 Input Manual", key="btn_manual")
+upload_click = st.sidebar.button("📁 Upload File", key="btn_upload")
+
+# Handle session state
 if 'input_method' not in st.session_state:
     st.session_state.input_method = "Manual"
+
 if manual_click:
     st.session_state.input_method = "Manual"
 if upload_click:
     st.session_state.input_method = "Upload"
+
 input_method = st.session_state.input_method
 
-def get_status_and_recommendation(score, modal_awal):
-    stts = labels[lang]['status']
+# === KONSTAN ===
+kriteria_cols = ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)',
+                 'Aset (Rp)', 'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)',
+                 'Tingkat Risiko (1-5)']
+cost_indices = [1, 6]
+
+# === FUNGSI ===
+def calculate_critic(data, cost_indices=[]):
+    data_normalized = data.copy()
+    for i, col in enumerate(data.columns):
+        if i in cost_indices:
+            data_normalized[col] = data[col].min() / data[col]
+        else:
+            data_normalized[col] = data[col] / data[col].max()
+    std_dev = data_normalized.std()
+    corr_matrix = data_normalized.corr()
+    conflict = 1 - corr_matrix.abs()
+    info = std_dev * conflict.sum()
+    weights = info / info.sum()
+    return weights, data_normalized
+
+def calculate_codas(data_normalized, weights):
+    weighted_data = data_normalized * weights.values
+    ideal_solution = weighted_data.min()
+    euclidean = np.sqrt(((weighted_data - ideal_solution) ** 2).sum(axis=1))
+    taxicab = np.abs(weighted_data - ideal_solution).sum(axis=1)
+    score = euclidean + taxicab
+    score_normalized = (score - score.min()) / (score.max() - score.min())
+    return score_normalized
+
+def get_status_and_recommendation(score):
     if score >= 0.81:
-        return stts['sangat_layak'], modal_awal * 0.60
+        return "Sangat Layak", 20000000
     elif score >= 0.61:
-        return stts['layak'], modal_awal * 0.45
+        return "Layak", 15000000
     elif score >= 0.41:
-        return stts['cukup_layak'], modal_awal * 0.30
+        return "Cukup Layak", 10000000
     elif score >= 0.21:
-        return stts['kurang_layak'], modal_awal * 0.15
+        return "Kurang Layak", 5000000
     else:
-        return stts['tidak_layak'], 0.0
+        return "Tidak Layak", 0
 
 # === MAIN ===
-st.title(labels[lang]['title'])
+st.title("📊 Sistem Pendukung Keputusan Investasi Usaha Mahasiswa")
+
 df_usaha = None
 
+# === INPUT MANUAL ===
 if input_method == "Manual":
-    st.subheader(labels[lang]['manual'])
-    num = st.number_input(labels[lang]['num_usaha'], min_value=1, max_value=20, step=1)
+    st.subheader("📝 Input Manual")
+    num = st.number_input("Jumlah Usaha", min_value=1, max_value=20, step=1)
     default_data = pd.DataFrame({
-        labels[lang]['nama_usaha']: [f"Business {i+1}" if lang == 'en' else f"Usaha {i+1}" for i in range(num)],
-        **{col: [0.0]*num for col in labels[lang]['kriteria']}
+        "Nama Usaha": [f"Usaha {i+1}" for i in range(num)],
+        **{col: [0.0]*num for col in kriteria_cols}
     })
     df_input = st.data_editor(default_data, use_container_width=True, num_rows="dynamic")
-    if st.button(labels[lang]['save'], key="process_manual"):
+    if st.button("💾 Simpan & Tampilkan Hasil", key="process_manual"):
         df_usaha = df_input.copy()
 
+# === INPUT FILE ===
 elif input_method == "Upload":
-    st.subheader(labels[lang]['upload'])
-    template_df = pd.DataFrame({
-        labels[lang]['nama_usaha']: [""],
-        **{col: [0.0] for col in labels[lang]['kriteria']}
-    })
-    template_csv = template_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label=labels[lang]['download_template'],
-        data=template_csv,
-        file_name='template_input_usaha.csv',
-        mime='text/csv'
-    )
-    uploaded_file = st.file_uploader(labels[lang]['upload_prompt'], type=["csv"])
+    st.subheader("📁 Upload File")
+    uploaded_file = st.file_uploader("Unggah file CSV/XLSX", type=["csv", "xlsx"])
     if uploaded_file is not None:
         try:
-            df_usaha = pd.read_csv(uploaded_file)
+            if uploaded_file.name.endswith(".csv"):
+                df_usaha = pd.read_csv(uploaded_file)
+            else:
+                df_usaha = pd.read_excel(uploaded_file)
+            st.success("✅ Data berhasil dimuat!")
         except Exception as e:
             st.error(f"Gagal membaca file: {e}")
-            df_usaha = None
 
+# === PROSES & HASIL ===
 if df_usaha is not None:
-    st.subheader(labels[lang]['data_usaha'])
+    st.subheader("📄 Data Usaha Mahasiswa")
     st.dataframe(df_usaha.reset_index(drop=True), use_container_width=True)
 
-    df_kriteria = df_usaha[labels[lang]['kriteria']].apply(pd.to_numeric, errors='coerce').fillna(0)
-    weights, df_normalized = calculate_critic(df_kriteria, cost_cols=["Modal Awal (Rp)", "Tingkat Risiko (1-5)"])
+    df_kriteria = df_usaha[kriteria_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
+    weights, data_normalized = calculate_critic(df_kriteria, cost_indices)
 
-    st.subheader(labels[lang]['bobot'])
+    st.subheader("📌 Bobot Kriteria (Metode CRITIC)")
     st.write(weights)
 
-    df_usaha['Skor CODAS'] = calculate_codas(df_normalized, weights)
-    df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').astype(int)
-    df_usaha['Status Kelayakan'], df_usaha['Rekomendasi Investasi (Rp)'] = zip(
-        *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])]
-    )
+    df_usaha['Skor CODAS'] = calculate_codas(data_normalized, weights)
 
-    st.subheader(labels[lang]['hasil'])
-    df_usaha[labels[lang]['nama_usaha']] = df_usaha[labels[lang]['nama_usaha']].fillna("-")
-    df_output = df_usaha[['Peringkat', labels[lang]['nama_usaha'], 'Skor CODAS', 'Status Kelayakan', 'Rekomendasi Investasi (Rp)']]
+    # FIXED NaN to int issue
+    df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').fillna(0).astype(int)
+
+    df_usaha['Status Kelayakan'], df_usaha['Rekomendasi Investasi (Rp)'] = zip(
+        *df_usaha['Skor CODAS'].apply(get_status_and_recommendation))
+
+    st.subheader("📈 Hasil Rekomendasi Investasi")
+    df_output = df_usaha[['Peringkat', 'Nama Usaha', 'Skor CODAS', 'Status Kelayakan', 'Rekomendasi Investasi (Rp)']]
     df_output = df_output.sort_values(by='Peringkat').reset_index(drop=True)
 
     st.dataframe(
         df_output.style.format({
             "Skor CODAS": "{:.4f}",
             "Rekomendasi Investasi (Rp)": "Rp {:,.0f}"
-        }).set_properties({'text-align': 'center'}).set_properties(
-            subset=[labels[lang]['nama_usaha']], **{'text-align': 'left'}),
+        }).set_properties({
+            'text-align': 'center'
+        }).set_properties(subset=['Nama Usaha'], **{
+            'text-align': 'left'
+        }),
         use_container_width=True
     )
 
     csv = df_output.to_csv(index=False)
-    st.download_button(labels[lang]['download_hasil'], data=csv, file_name="hasil_investasi.csv", mime="text/csv")
+    st.download_button("💾 Unduh Hasil", data=csv, file_name="hasil_investasi.csv", mime="text/csv")
