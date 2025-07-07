@@ -15,6 +15,7 @@ labels = {
         'title': "📊 Sistem Pendukung Keputusan Investasi Usaha Mahasiswa",
         'manual': "📝 Input Manual",
         'upload': "📁 Upload File",
+        'profile': "👤 Profil Usaha",
         'num_usaha': "Jumlah Usaha",
         'save': "💾 Simpan & Tampilkan Hasil",
         'download_template': "⬇️ Unduh Template Kosong (CSV)",
@@ -39,6 +40,7 @@ labels = {
         'title': "📊 Decision Support System for Student Business Investment",
         'manual': "📝 Manual Input",
         'upload': "📁 Upload File",
+        'profile': "👤 Business Profiles",
         'num_usaha': "Number of Businesses",
         'save': "💾 Save & Show Result",
         'download_template': "⬇️ Download Blank Template (CSV)",
@@ -108,11 +110,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SIDEBAR ===
-st.sidebar.title(
-    "SPK Investasi Mahasiswa" if lang == 'id' else "Decision Support System"
-)
+st.sidebar.title("SPK Investasi Mahasiswa" if lang == 'id' else "Decision Support System")
 manual_click = st.sidebar.button(labels[lang]['manual'], key="btn_manual")
 upload_click = st.sidebar.button(labels[lang]['upload'], key="btn_upload")
+profile_click = st.sidebar.button(labels[lang]['profile'], key="btn_profile")
 with st.sidebar:
     st.markdown("---")
     if st.button(labels[lang]['change_lang']):
@@ -125,6 +126,8 @@ if manual_click:
     st.session_state.input_method = "Manual"
 if upload_click:
     st.session_state.input_method = "Upload"
+if profile_click:
+    st.session_state.input_method = "Profile"
 input_method = st.session_state.input_method
 
 # === FUNGSI ===
@@ -167,7 +170,47 @@ def get_status_and_recommendation(score, modal_awal):
 st.title(labels[lang]['title'])
 df_usaha = None
 
-if input_method == "Manual":
+# === Halaman Profil Usaha ===
+if input_method == "Profile":
+    st.subheader(labels[lang]['profile'])
+
+    if 'profiles' not in st.session_state:
+        st.session_state.profiles = pd.DataFrame({
+            'Nama Usaha' if lang == 'id' else 'Business Name': [],
+            'Deskripsi': [],
+            'Kategori': []
+        })
+
+    df_profiles = st.session_state.profiles
+
+    with st.form("form_add_profile"):
+        st.markdown("### Tambah Profil Usaha" if lang == 'id' else "### Add Business Profile")
+        nama_usaha = st.text_input("Nama Usaha" if lang == 'id' else "Business Name")
+        deskripsi = st.text_area("Deskripsi" if lang == 'id' else "Description")
+        kategori = st.selectbox("Kategori Usaha" if lang == 'id' else "Business Category",
+                                options=["F&B", "Fashion", "Jasa", "Digital", "Lainnya"])
+        submitted = st.form_submit_button("Tambah" if lang == 'id' else "Add")
+
+        if submitted and nama_usaha:
+            new_profile = {
+                'Nama Usaha' if lang == 'id' else 'Business Name': nama_usaha,
+                'Deskripsi': deskripsi,
+                'Kategori': kategori
+            }
+            st.session_state.profiles = pd.concat([st.session_state.profiles, pd.DataFrame([new_profile])], ignore_index=True)
+            st.success("Berhasil ditambahkan!" if lang == 'id' else "Profile added successfully!")
+            st.rerun()
+
+    st.markdown("### Daftar Profil Usaha" if lang == 'id' else "### List of Business Profiles")
+
+    if not df_profiles.empty:
+        edited_profiles = st.data_editor(df_profiles, use_container_width=True, num_rows="dynamic")
+        st.session_state.profiles = edited_profiles
+    else:
+        st.info("Belum ada profil usaha." if lang == 'id' else "No business profiles yet.")
+
+# === Halaman Input Manual ===
+elif input_method == "Manual":
     st.subheader(labels[lang]['manual'])
     num = st.number_input(labels[lang]['num_usaha'], min_value=1, max_value=20, step=1)
     default_data = pd.DataFrame({
@@ -178,6 +221,7 @@ if input_method == "Manual":
     if st.button(labels[lang]['save'], key="process_manual"):
         df_usaha = df_input.copy()
 
+# === Halaman Upload File ===
 elif input_method == "Upload":
     st.subheader(labels[lang]['upload'])
     template_df = pd.DataFrame({
@@ -194,11 +238,7 @@ elif input_method == "Upload":
     uploaded_file = st.file_uploader(labels[lang]['upload_prompt'], type=["csv"])
     if uploaded_file is not None:
         try:
-            if uploaded_file.name.endswith(".csv"):
-                df_usaha = pd.read_csv(uploaded_file)
-            else:
-                df_usaha = pd.read_excel(uploaded_file)
-
+            df_usaha = pd.read_csv(uploaded_file)
             missing = set(labels[lang]['kriteria']) - set(df_usaha.columns)
             if missing:
                 st.error("❌ Kolom berikut tidak ditemukan: " + ", ".join(missing))
@@ -208,6 +248,7 @@ elif input_method == "Upload":
         except Exception as e:
             st.error(f"Gagal membaca file: {e}" if lang == 'id' else f"Failed to read file: {e}")
 
+# === Perhitungan CRITIC & CODAS ===
 if df_usaha is not None:
     st.subheader(labels[lang]['data_usaha'])
     st.dataframe(df_usaha.reset_index(drop=True), use_container_width=True)
