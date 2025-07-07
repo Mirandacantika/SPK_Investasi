@@ -28,6 +28,9 @@ labels = {
         'kriteria': ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)', 'Aset (Rp)',
                      'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)'],
         'nama_usaha': 'Nama Usaha',
+        'tambah_profil': "➕ Tambah Profil Usaha",
+        'hapus_profil': "🗑️ Hapus Profil",
+        'batal': "Batal",
         'status': {
             'sangat_layak': "Sangat Layak",
             'layak': "Layak",
@@ -35,6 +38,8 @@ labels = {
             'kurang_layak': "Kurang Layak",
             'tidak_layak': "Tidak Layak"
         }
+        
+
     },
     'en': {
         'title': "📊 Decision Support System for Student Business Investment",
@@ -53,6 +58,9 @@ labels = {
         'kriteria': ['ROI (%)', 'Initial Capital (Rp)', 'Avg. 3-Month Revenue (Rp)', 'Assets (Rp)',
                      'Product Innovation (1-5)', 'Market Opportunity (1-5)', 'Risk Level (1-5)'],
         'nama_usaha': 'Business Name',
+        'tambah_profil': "➕ Add Business Profile",
+        'hapus_profil': "🗑️ Delete Profile",
+        'batal': "Cancel",
         'status': {
             'sangat_layak': "Highly Recommended",
             'layak': "Recommended",
@@ -60,6 +68,24 @@ labels = {
             'kurang_layak': "Less Recommended",
             'tidak_layak': "Not Recommended"
         }
+    }
+}
+
+# === Mapping Bahasa untuk Kategori Usaha ===
+kategori_mapping = {
+    'id': {
+        'F&B': 'F&B',
+        'Fashion': 'Fashion',
+        'Jasa': 'Jasa',
+        'Digital': 'Digital',
+        'Lainnya': 'Lainnya'
+    },
+    'en': {
+        'F&B': 'F&B',
+        'Fashion': 'Fashion',
+        'Jasa': 'Services',
+        'Digital': 'Digital',
+        'Lainnya': 'Others'
     }
 }
 
@@ -170,42 +196,111 @@ def get_status_and_recommendation(score, modal_awal):
 st.title(labels[lang]['title'])
 df_usaha = None
 
+import mysql.connector
+
+def get_db_connection():
+    try:
+        conn = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="",
+            database="spk_investasi"
+        )
+        return conn
+    except mysql.connector.Error as err:
+        st.error(f"Koneksi ke database gagal: {err}")
+        return None
+
+
+def load_profiles_from_db():
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    cursor.execute("SELECT * FROM profil_usaha")
+    rows = cursor.fetchall()
+    conn.close()
+    return pd.DataFrame(rows)
+
+def insert_profile(nama, deskripsi, kategori):
+    conn = get_db_connection()
+    if conn is None:
+        return
+    try:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO profil_usaha (nama_usaha, deskripsi, kategori) VALUES (%s, %s, %s)",
+                       (nama, deskripsi, kategori))
+        conn.commit()
+    except Exception as e:
+        st.error(f"Gagal menyimpan ke database: {e}")
+    finally:
+        conn.close()
+
+def delete_profile(profile_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM profil_usaha WHERE id = %s", (profile_id,))
+    conn.commit()
+    conn.close()
+
 # === Halaman Profil Usaha ===
 if input_method == "Profile":
     st.subheader(labels[lang]['profile'])
 
-    if 'profiles' not in st.session_state:
-        st.session_state.profiles = pd.DataFrame({
-            'Nama Usaha' if lang == 'id' else 'Business Name': [],
-            'Deskripsi': [],
-            'Kategori': []
-        })
+    # Inisialisasi popup
+    if 'show_add_popup' not in st.session_state:
+        st.session_state.show_add_popup = False
 
-    df_profiles = st.session_state.profiles
+    # Tombol tambah (trigger popup)
+    if st.button(labels[lang]['tambah_profil']):
+        st.session_state.show_add_popup = True
 
-    with st.form("form_add_profile"):
+    # Popup Form Tambah Profil
+    if st.session_state.show_add_popup:
         st.markdown("### Tambah Profil Usaha" if lang == 'id' else "### Add Business Profile")
-        nama_usaha = st.text_input("Nama Usaha" if lang == 'id' else "Business Name")
-        deskripsi = st.text_area("Deskripsi" if lang == 'id' else "Description")
-        kategori = st.selectbox("Kategori Usaha" if lang == 'id' else "Business Category",
-                                options=["F&B", "Fashion", "Jasa", "Digital", "Lainnya"])
-        submitted = st.form_submit_button("Tambah" if lang == 'id' else "Add")
+        with st.form("popup_add_profile"):
+            nama_usaha = st.text_input("Nama Usaha" if lang == 'id' else "Business Name")
+            deskripsi = st.text_area("Deskripsi" if lang == 'id' else "Description")
+            kategori = st.selectbox("Kategori" if lang == 'id' else "Category", options=["F&B", "Fashion", "Jasa", "Digital", "Lainnya"])
+            col1, col2 = st.columns(2)
+            with col1:
+                submitted = st.form_submit_button(labels[lang]['tambah_profil'])
+            with col2:
+                cancel = st.form_submit_button(labels[lang]['batal'])
 
-        if submitted and nama_usaha:
-            new_profile = {
-                'Nama Usaha' if lang == 'id' else 'Business Name': nama_usaha,
-                'Deskripsi': deskripsi,
-                'Kategori': kategori
-            }
-            st.session_state.profiles = pd.concat([st.session_state.profiles, pd.DataFrame([new_profile])], ignore_index=True)
-            st.success("Berhasil ditambahkan!" if lang == 'id' else "Profile added successfully!")
-            st.rerun()
+            if submitted and nama_usaha:
+                insert_profile(nama_usaha, deskripsi, kategori)
+                st.session_state.show_add_popup = False
+                st.success("Profil usaha ditambahkan!")
+                st.rerun()
+            if cancel:
+                st.session_state.show_add_popup = False
+                st.rerun()
 
+    # Load dan tampilkan profil dalam bentuk tabel
     st.markdown("### Daftar Profil Usaha" if lang == 'id' else "### List of Business Profiles")
+    df_profiles = load_profiles_from_db()
+    # Terjemahkan kategori sesuai bahasa
+    df_profiles['kategori'] = df_profiles['kategori'].map(kategori_mapping[lang])
+
 
     if not df_profiles.empty:
-        edited_profiles = st.data_editor(df_profiles, use_container_width=True, num_rows="dynamic")
-        st.session_state.profiles = edited_profiles
+        df_show = df_profiles[['id', 'nama_usaha', 'deskripsi', 'kategori']].rename(columns={
+            'id': 'ID',
+            'nama_usaha': 'Nama Usaha' if lang == 'id' else 'Business Name',
+            'deskripsi': 'Deskripsi' if lang == 'id' else 'Description',
+            'kategori': 'Kategori' if lang == 'id' else 'Category'
+        })
+
+        st.dataframe(df_show, use_container_width=True)
+
+        selected_id = st.selectbox(
+            "📌 Pilih ID untuk dihapus:" if lang == 'id' else "📌 Select ID to delete:",
+            df_profiles['id'],
+            format_func=lambda x: f"{x} - {df_profiles.loc[df_profiles['id'] == x, 'nama_usaha'].values[0]}"
+        )
+        if st.button(labels[lang]['hapus_profil']):
+            delete_profile(selected_id)
+            st.success("Profil berhasil dihapus!")
+            st.rerun()
     else:
         st.info("Belum ada profil usaha." if lang == 'id' else "No business profiles yet.")
 
