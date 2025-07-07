@@ -1,30 +1,42 @@
+# === SISTEM PENDUKUNG KEPUTUSAN INVESTASI BERBASIS DATABASE ===
 import streamlit as st
 import pandas as pd
 import numpy as np
+import sqlite3
 
-# === PAGE CONFIG ===
-st.set_page_config(page_title="SPK Investasi Mahasiswa", layout="wide")
+# === KONEKSI & INISIALISASI DATABASE ===
+conn = sqlite3.connect('profil_usaha.db', check_same_thread=False)
+cursor = conn.cursor()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS profil_usaha (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nama TEXT NOT NULL,
+        deskripsi TEXT,
+        kategori TEXT
+    )
+''')
+conn.commit()
 
-# === BAHASA ===
+# === LABEL BILINGUAL ===
 if 'language' not in st.session_state:
     st.session_state.language = 'id'
 lang = st.session_state.language
 
 labels = {
     'id': {
-        'title': "📊 Sistem Pendukung Keputusan Investasi Usaha Mahasiswa",
-        'manual': "📝 Input Manual",
-        'upload': "📁 Upload File",
-        'profile': "👤 Profil Usaha",
+        'title': "\U0001F4CA Sistem Pendukung Keputusan Investasi Usaha Mahasiswa",
+        'manual': "\U0001F4DD Input Manual",
+        'upload': "\U0001F4C1 Upload File",
+        'profile': "\U0001F464 Profil Usaha",
         'num_usaha': "Jumlah Usaha",
-        'save': "💾 Simpan & Tampilkan Hasil",
+        'save': "\U0001F4BE Simpan & Tampilkan Hasil",
         'download_template': "⬇️ Unduh Template Kosong (CSV)",
         'upload_prompt': "Unggah file CSV",
-        'data_usaha': "📄 Data Usaha Mahasiswa",
-        'bobot': "📌 Bobot Kriteria (Metode CRITIC)",
-        'hasil': "📈 Hasil Rekomendasi Investasi",
-        'download_hasil': "💾 Unduh Hasil",
-        'change_lang': "🇬🇧 English",
+        'data_usaha': "\U0001F4C4 Data Usaha Mahasiswa",
+        'bobot': "\U0001F4CC Bobot Kriteria (Metode CRITIC)",
+        'hasil': "\U0001F4C8 Hasil Rekomendasi Investasi",
+        'download_hasil': "\U0001F4BE Unduh Hasil",
+        'change_lang': "\U0001F1EC\U0001F1E7 English",
         'kriteria': ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)', 'Aset (Rp)',
                      'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)'],
         'nama_usaha': 'Nama Usaha',
@@ -37,19 +49,19 @@ labels = {
         }
     },
     'en': {
-        'title': "📊 Decision Support System for Student Business Investment",
-        'manual': "📝 Manual Input",
-        'upload': "📁 Upload File",
-        'profile': "👤 Business Profiles",
+        'title': "\U0001F4CA Decision Support System for Student Business Investment",
+        'manual': "\U0001F4DD Manual Input",
+        'upload': "\U0001F4C1 Upload File",
+        'profile': "\U0001F464 Business Profiles",
         'num_usaha': "Number of Businesses",
-        'save': "💾 Save & Show Result",
+        'save': "\U0001F4BE Save & Show Result",
         'download_template': "⬇️ Download Blank Template (CSV)",
         'upload_prompt': "Upload CSV file",
-        'data_usaha': "📄 Student Business Data",
-        'bobot': "📌 Criteria Weights (CRITIC Method)",
-        'hasil': "📈 Investment Recommendation Result",
-        'download_hasil': "💾 Download Result",
-        'change_lang': "🇮🇩 Bahasa Indonesia",
+        'data_usaha': "\U0001F4C4 Student Business Data",
+        'bobot': "\U0001F4CC Criteria Weights (CRITIC Method)",
+        'hasil': "\U0001F4C8 Investment Recommendation Result",
+        'download_hasil': "\U0001F4BE Download Result",
+        'change_lang': "\U0001F1EE\U0001F1E9 Bahasa Indonesia",
         'kriteria': ['ROI (%)', 'Initial Capital (Rp)', 'Avg. 3-Month Revenue (Rp)', 'Assets (Rp)',
                      'Product Innovation (1-5)', 'Market Opportunity (1-5)', 'Risk Level (1-5)'],
         'nama_usaha': 'Business Name',
@@ -63,74 +75,24 @@ labels = {
     }
 }
 
+# Fungsi DB
+def insert_profil(nama, deskripsi, kategori):
+    cursor.execute("INSERT INTO profil_usaha (nama, deskripsi, kategori) VALUES (?, ?, ?)",
+                   (nama, deskripsi, kategori))
+    conn.commit()
+
+def get_all_profiles():
+    cursor.execute("SELECT * FROM profil_usaha")
+    return cursor.fetchall()
+
+def delete_profile(profile_id):
+    cursor.execute("DELETE FROM profil_usaha WHERE id = ?", (profile_id,))
+    conn.commit()
+
+# Fungsi Analisis
 standard_kriteria = ['ROI (%)', 'Modal Awal (Rp)', 'Pendapatan Rata-Rata 3 Bulan (Rp)',
                      'Aset (Rp)', 'Inovasi Produk (1-5)', 'Peluang Pasar (1-5)', 'Tingkat Risiko (1-5)']
 
-# === STYLING ===
-st.markdown("""
-    <style>
-    html, body, [class*="css"] {
-        font-family: 'Segoe UI', sans-serif;
-    }
-    section[data-testid="stSidebar"] {
-        background-color: #EAF4FF;
-        border-right: 1px solid #D0E3F1;
-    }
-    div.stButton > button {
-        width: 100%;
-        background-color: #2196F3;
-        color: white;
-        border-radius: 8px;
-        font-weight: bold;
-        border: none;
-        padding: 0.6em 1.2em;
-        margin-bottom: 10px;
-        transition: 0.3s;
-    }
-    div.stButton > button:hover {
-        background-color: #0b7dda;
-    }
-    .stDownloadButton button {
-        width: 100%;
-        background-color: #00BFFF;
-        color: white;
-        border-radius: 8px;
-        font-weight: bold;
-        border: none;
-        margin-bottom: 10px;
-    }
-    .dataframe th {
-        background-color: #F0F8FF;
-    }
-    .dataframe td {
-        text-align: center;
-        padding: 6px;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# === SIDEBAR ===
-st.sidebar.title("SPK Investasi Mahasiswa" if lang == 'id' else "Decision Support System")
-manual_click = st.sidebar.button(labels[lang]['manual'], key="btn_manual")
-upload_click = st.sidebar.button(labels[lang]['upload'], key="btn_upload")
-profile_click = st.sidebar.button(labels[lang]['profile'], key="btn_profile")
-with st.sidebar:
-    st.markdown("---")
-    if st.button(labels[lang]['change_lang']):
-        st.session_state.language = 'en' if lang == 'id' else 'id'
-        st.rerun()
-
-if 'input_method' not in st.session_state:
-    st.session_state.input_method = "Manual"
-if manual_click:
-    st.session_state.input_method = "Manual"
-if upload_click:
-    st.session_state.input_method = "Upload"
-if profile_click:
-    st.session_state.input_method = "Profile"
-input_method = st.session_state.input_method
-
-# === FUNGSI ===
 def calculate_critic(data, cost_indices=[]):
     data_normalized = data.copy()
     for i, col in enumerate(data.columns):
@@ -165,120 +127,3 @@ def get_status_and_recommendation(score, modal_awal):
         return stts['kurang_layak'], modal_awal * 0.15
     else:
         return stts['tidak_layak'], 0.0
-
-# === MAIN ===
-st.title(labels[lang]['title'])
-df_usaha = None
-
-# === Halaman Profil Usaha ===
-if input_method == "Profile":
-    st.subheader(labels[lang]['profile'])
-
-    if 'profiles' not in st.session_state:
-        st.session_state.profiles = pd.DataFrame({
-            'Nama Usaha' if lang == 'id' else 'Business Name': [],
-            'Deskripsi': [],
-            'Kategori': []
-        })
-
-    df_profiles = st.session_state.profiles
-
-    with st.form("form_add_profile"):
-        st.markdown("### Tambah Profil Usaha" if lang == 'id' else "### Add Business Profile")
-        nama_usaha = st.text_input("Nama Usaha" if lang == 'id' else "Business Name")
-        deskripsi = st.text_area("Deskripsi" if lang == 'id' else "Description")
-        kategori = st.selectbox("Kategori Usaha" if lang == 'id' else "Business Category",
-                                options=["F&B", "Fashion", "Jasa", "Digital", "Lainnya"])
-        submitted = st.form_submit_button("Tambah" if lang == 'id' else "Add")
-
-        if submitted and nama_usaha:
-            new_profile = {
-                'Nama Usaha' if lang == 'id' else 'Business Name': nama_usaha,
-                'Deskripsi': deskripsi,
-                'Kategori': kategori
-            }
-            st.session_state.profiles = pd.concat([st.session_state.profiles, pd.DataFrame([new_profile])], ignore_index=True)
-            st.success("Berhasil ditambahkan!" if lang == 'id' else "Profile added successfully!")
-            st.rerun()
-
-    st.markdown("### Daftar Profil Usaha" if lang == 'id' else "### List of Business Profiles")
-
-    if not df_profiles.empty:
-        edited_profiles = st.data_editor(df_profiles, use_container_width=True, num_rows="dynamic")
-        st.session_state.profiles = edited_profiles
-    else:
-        st.info("Belum ada profil usaha." if lang == 'id' else "No business profiles yet.")
-
-# === Halaman Input Manual ===
-elif input_method == "Manual":
-    st.subheader(labels[lang]['manual'])
-    num = st.number_input(labels[lang]['num_usaha'], min_value=1, max_value=20, step=1)
-    default_data = pd.DataFrame({
-        labels[lang]['nama_usaha']: [f"Business {i+1}" if lang == 'en' else f"Usaha {i+1}" for i in range(num)],
-        **{col: [0.0]*num for col in labels[lang]['kriteria']}
-    })
-    df_input = st.data_editor(default_data, use_container_width=True, num_rows="dynamic")
-    if st.button(labels[lang]['save'], key="process_manual"):
-        df_usaha = df_input.copy()
-
-# === Halaman Upload File ===
-elif input_method == "Upload":
-    st.subheader(labels[lang]['upload'])
-    template_df = pd.DataFrame({
-        labels[lang]['nama_usaha']: [""],
-        **{col: [0.0] for col in labels[lang]['kriteria']}
-    })
-    template_csv = template_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label=labels[lang]['download_template'],
-        data=template_csv,
-        file_name='template_input_usaha.csv',
-        mime='text/csv'
-    )
-    uploaded_file = st.file_uploader(labels[lang]['upload_prompt'], type=["csv"])
-    if uploaded_file is not None:
-        try:
-            df_usaha = pd.read_csv(uploaded_file)
-            missing = set(labels[lang]['kriteria']) - set(df_usaha.columns)
-            if missing:
-                st.error("❌ Kolom berikut tidak ditemukan: " + ", ".join(missing))
-                df_usaha = None
-            else:
-                st.success("✅ Data berhasil dimuat!" if lang == 'id' else "✅ File loaded successfully!")
-        except Exception as e:
-            st.error(f"Gagal membaca file: {e}" if lang == 'id' else f"Failed to read file: {e}")
-
-# === Perhitungan CRITIC & CODAS ===
-if df_usaha is not None:
-    st.subheader(labels[lang]['data_usaha'])
-    st.dataframe(df_usaha.reset_index(drop=True), use_container_width=True)
-
-    col_map = dict(zip(labels[lang]['kriteria'], standard_kriteria))
-    df_kriteria = df_usaha.rename(columns=col_map)[standard_kriteria].apply(pd.to_numeric, errors='coerce').fillna(0)
-
-    weights, data_normalized = calculate_critic(df_kriteria, cost_indices=[1, 6])
-
-    st.subheader(labels[lang]['bobot'])
-    st.write(weights)
-
-    df_usaha['Skor CODAS'] = calculate_codas(data_normalized, weights)
-    df_usaha['Peringkat'] = df_usaha['Skor CODAS'].rank(ascending=False, method='min').astype(int)
-    df_usaha['Status Kelayakan'], df_usaha['Rekomendasi Investasi (Rp)'] = zip(
-        *[get_status_and_recommendation(score, modal) for score, modal in zip(df_usaha['Skor CODAS'], df_kriteria['Modal Awal (Rp)'])])
-
-    st.subheader(labels[lang]['hasil'])
-    df_usaha[labels[lang]['nama_usaha']] = df_usaha[labels[lang]['nama_usaha']].fillna("-")
-    df_output = df_usaha[['Peringkat', labels[lang]['nama_usaha'], 'Skor CODAS', 'Status Kelayakan', 'Rekomendasi Investasi (Rp)']]
-    df_output = df_output.sort_values(by='Peringkat').reset_index(drop=True)
-
-    st.dataframe(
-        df_output.style.format({
-            "Skor CODAS": "{:.4f}",
-            "Rekomendasi Investasi (Rp)": "Rp {:,.0f}"
-        }).set_properties(**{'text-align': 'center'}).set_properties(
-            subset=[labels[lang]['nama_usaha']], **{'text-align': 'left'}),
-        use_container_width=True
-    )
-
-    csv = df_output.to_csv(index=False)
-    st.download_button(labels[lang]['download_hasil'], data=csv, file_name="hasil_investasi.csv", mime="text/csv")
