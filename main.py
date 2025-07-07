@@ -136,7 +136,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SIDEBAR ===
-st.sidebar.title("SPK Investasi Mahasiswa" if lang == 'id' else "Decision Support System")
+st.sidebar.title("Sistem Pendukung Keputusan" if lang == 'id' else "Decision Support System")
 manual_click = st.sidebar.button(labels[lang]['manual'], key="btn_manual")
 upload_click = st.sidebar.button(labels[lang]['upload'], key="btn_upload")
 profile_click = st.sidebar.button(labels[lang]['profile'], key="btn_profile")
