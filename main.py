@@ -108,7 +108,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # === SIDEBAR ===
-st.sidebar.title("SPK Investasi Mahasiswa")
+st.sidebar.title(
+    "SPK Investasi Mahasiswa" if lang == 'id' else "DSS for Student Business Investment"
+)
 manual_click = st.sidebar.button(labels[lang]['manual'], key="btn_manual")
 upload_click = st.sidebar.button(labels[lang]['upload'], key="btn_upload")
 with st.sidebar:
