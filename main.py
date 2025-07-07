@@ -196,29 +196,26 @@ def get_status_and_recommendation(score, modal_awal):
 st.title(labels[lang]['title'])
 df_usaha = None
 
-import mysql.connector
+import psycopg2
+import pandas as pd
 
 def get_db_connection():
     try:
-        conn = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="",
-            database="spk_investasi"
-        )
+        db_url = st.secrets["postgres"]["connection_string"]
+        conn = psycopg2.connect(db_url)
         return conn
-    except mysql.connector.Error as err:
-        st.error(f"Koneksi ke database gagal: {err}")
+    except Exception as e:
+        st.error(f"Koneksi ke database gagal: {e}")
         return None
-
 
 def load_profiles_from_db():
     conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+    cursor = conn.cursor()
     cursor.execute("SELECT * FROM profil_usaha")
     rows = cursor.fetchall()
+    colnames = [desc[0] for desc in cursor.description]
     conn.close()
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=colnames)
 
 def insert_profile(nama, deskripsi, kategori):
     conn = get_db_connection()
